@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Marin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#04060c; --bg2:#070b15; --linha:rgba(90,200,255,.14); --texto:#cfe9ff; --fraco:#6d8aa6;
+    --cor:#3ee6ff; --cor-rgb:62,230,255;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;background:var(--bg);color:var(--texto);font-family:Rajdhani,"Segoe UI",sans-serif;overflow:hidden;user-select:none}
+  body{display:grid;grid-template-columns:1fr 380px;grid-template-rows:44px 1fr}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;
+    background:radial-gradient(ellipse at 35% 50%, rgba(var(--cor-rgb),.07), transparent 60%),
+               repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px);
+    transition:background .6s}
+  .mono{font-family:Orbitron,"Segoe UI",sans-serif;letter-spacing:.18em}
+
+  header{grid-column:1/3;display:flex;align-items:center;justify-content:space-between;padding:0 22px;border-bottom:1px solid var(--linha);font-size:12px;color:var(--fraco)}
+  header .marca{color:var(--cor);font-size:14px;transition:color .5s}
+  header .ponto{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--cor);margin-right:8px;box-shadow:0 0 10px var(--cor);animation:pisca 2s infinite}
+  @keyframes pisca{50%{opacity:.35}}
+
+  main{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:0}
+  canvas{width:min(62vh,90%);aspect-ratio:1;cursor:pointer}
+  .estado{margin-top:6px;font-size:15px;color:var(--cor);transition:color .5s;min-height:22px}
+  .detalhe{font-size:14px;color:var(--fraco);min-height:20px;margin-top:4px;text-align:center;padding:0 20px}
+  .cantos span{position:absolute;width:26px;height:26px;border-color:rgba(var(--cor-rgb),.45);border-style:solid;transition:border-color .5s}
+  .cantos span:nth-child(1){top:18px;left:18px;border-width:2px 0 0 2px}
+  .cantos span:nth-child(2){top:18px;right:18px;border-width:2px 2px 0 0}
+  .cantos span:nth-child(3){bottom:18px;left:18px;border-width:0 0 2px 2px}
+  .cantos span:nth-child(4){bottom:18px;right:18px;border-width:0 2px 2px 0}
+  .dica{position:absolute;bottom:26px;font-size:13px;color:var(--fraco)}
+  kbd{font-family:inherit;border:1px solid var(--linha);padding:1px 6px;border-radius:4px;color:var(--texto)}
+
+  aside{border-left:1px solid var(--linha);display:flex;flex-direction:column;min-height:0;background:linear-gradient(180deg,var(--bg2),var(--bg))}
+  .relogio{padding:18px 20px 12px;border-bottom:1px solid var(--linha)}
+  .hora{font-size:34px;color:#fff}
+  .data{color:var(--fraco);font-size:15px;text-transform:capitalize}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .chip{font-size:12px;padding:3px 8px;border:1px solid var(--linha);border-radius:3px;color:var(--fraco)}
+  .chip b{color:var(--texto);font-weight:600}
+
+  .titulo{font-size:10px;color:var(--fraco);padding:12px 20px 6px;display:flex;justify-content:space-between;align-items:center}
+  .titulo button{background:none;border:1px solid var(--linha);color:var(--fraco);font:inherit;font-size:10px;padding:2px 7px;cursor:pointer;border-radius:3px}
+  .titulo button:hover{color:var(--texto)}
+  #chat{flex:1;overflow-y:auto;padding:4px 20px 12px;display:flex;flex-direction:column;gap:10px;min-height:0;user-select:text}
+  #chat::-webkit-scrollbar{width:4px} #chat::-webkit-scrollbar-thumb{background:var(--linha)}
+  .msg{font-size:16px;line-height:1.35;animation:entra .35s ease-out}
+  .msg .quem{font-size:10px;display:block;margin-bottom:2px}
+  .msg.voce{color:#9fb6cc} .msg.voce .quem{color:var(--fraco)}
+  .msg.marin{color:#eaf6ff;border-left:2px solid rgba(var(--cor-rgb),.6);padding-left:10px}
+  .msg.marin .quem{color:var(--cor)}
+  .msg.sys{font-size:13px;color:var(--fraco);font-style:italic}
+  @keyframes entra{from{opacity:0;transform:translateY(6px)}}
+  .vazio{color:var(--fraco);font-size:14px;margin-top:6px}
+
+  #lembretes{padding:0 20px 8px;max-height:120px;overflow-y:auto}
+  .lemb{font-size:14px;display:flex;gap:8px;padding:3px 0;color:var(--texto)}
+  .lemb span{color:var(--cor);min-width:86px;font-size:13px}
+
+  form{display:flex;gap:8px;padding:12px 20px 16px;border-top:1px solid var(--linha)}
+  input{flex:1;background:rgba(255,255,255,.03);border:1px solid var(--linha);color:var(--texto);font:inherit;font-size:15px;padding:9px 12px;border-radius:4px;outline:none}
+  input:focus{border-color:rgba(var(--cor-rgb),.6)}
+  form button{background:rgba(var(--cor-rgb),.12);border:1px solid rgba(var(--cor-rgb),.5);color:var(--cor);font:inherit;font-weight:600;padding:0 14px;border-radius:4px;cursor:pointer}
+
+  @media (max-width:820px){body{grid-template-columns:1fr 300px}}
+</style>
+</head>
+<body>
+<header>
+  <div class="marca mono"><span class="ponto"></span>MARIN</div>
+  <div class="mono" id="sub">SISTEMA PESSOAL · v1.0</div>
+</header>
+
+<main>
+  <div class="cantos"><span></span><span></span><span></span><span></span></div>
+  <canvas id="reator" width="900" height="900" title="Clique para falar"></canvas>
+  <div class="estado mono" id="estado">INICIANDO</div>
+  <div class="detalhe" id="detalhe"></div>
+  <div class="dica">Diga <b>"Marin"</b>, clique no círculo ou aperte <kbd id="atalho">Ctrl+Alt+M</kbd></div>
+</main>
+
+<aside>
+  <div class="relogio">
+    <div class="hora mono" id="hora">--:--</div>
+    <div class="data" id="data"></div>
+    <div class="chips" id="chips"></div>
+  </div>
+  <div class="titulo mono">LEMBRETES</div>
+  <div id="lembretes"><div class="vazio">Nenhum lembrete.</div></div>
+  <div class="titulo mono">CONVERSA <button id="limpar" title="Faz a Marin esquecer a conversa">LIMPAR</button></div>
+  <div id="chat"><div class="vazio">Tudo pronto quando você quiser.</div></div>
+  <form id="form" autocomplete="off">
+    <input id="entrada" placeholder="Ou digite aqui…">
+    <button>ENVIAR</button>
+  </form>
+</aside>
+
+<script>
+const CORES = {
+  iniciando:[120,150,190], aguardando:[62,230,255], ouvindo:[90,255,230],
+  pensando:[255,184,76], falando:[255,110,190], erro:[255,80,90]
+};
+const ROTULOS = {iniciando:"INICIANDO", aguardando:"EM ESPERA", ouvindo:"OUVINDO",
+  pensando:"PROCESSANDO", falando:"FALANDO", erro:"ERRO"};
+
+const $ = id => document.getElementById(id);
+// chamadas para o Python
+const chamar = (metodo, ...args) => fetch("/api/" + metodo, {method: "POST", body: JSON.stringify(args)}).catch(() => {});
+const API = {
+  ativar: () => chamar("ativar"), enviar_texto: t => chamar("enviar_texto", t),
+  parar_fala: () => chamar("parar_fala"), esquecer: () => chamar("esquecer"),
+};
+const api = () => API;
+
+let estadoAtual = "iniciando", cor = [...CORES.iniciando], corAlvo = CORES.iniciando;
+let nivelMic = 0, nivelSuave = 0;
+
+window.hud = {
+  estado(e, detalhe){
+    estadoAtual = e; corAlvo = CORES[e] || CORES.aguardando;
+    $("estado").textContent = ROTULOS[e] || e.toUpperCase();
+    $("detalhe").textContent = detalhe || "";
+  },
+  mensagem(quem, texto){
+    const chat = $("chat");
+    chat.querySelector(".vazio")?.remove();
+    const d = document.createElement("div");
+    d.className = "msg " + quem;
+    d.innerHTML = `<span class="quem mono">${quem === "voce" ? "VOCÊ" : "MARIN"}</span>`;
+    d.appendChild(document.createTextNode(texto));
+    chat.appendChild(d);
+    while (chat.children.length > 60) chat.firstChild.remove();
+    chat.scrollTop = chat.scrollHeight;
+  },
+  log(texto){
+    if (!/^(⚙|⏱|Erro|Pronta|O Ollama|O modelo|Whisper|Voz|Atalho)/.test(texto)) return;
+    const chat = $("chat"), d = document.createElement("div");
+    d.className = "msg sys"; d.textContent = texto;
+    chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+  },
+  nivel(x){ nivelMic = x; },
+  info(d){
+    const chips = [["IA", d.modelo], ["OUVIDO", d.whisper], ["VOZ", d.voz], ["CIDADE", d.cidade]];
+    $("chips").innerHTML = chips.filter(c => c[1]).map(([k, v]) => `<div class="chip">${k} <b>${v}</b></div>`).join("");
+    if (d.atalho) $("atalho").textContent = d.atalho.split("+").map(s => s[0].toUpperCase() + s.slice(1)).join("+");
+  },
+  lembretes(itens){
+    const el = $("lembretes");
+    if (!itens.length){ el.innerHTML = '<div class="vazio">Nenhum lembrete.</div>'; return; }
+    el.innerHTML = "";
+    itens.forEach(it => {
+      const q = new Date(it.quando), hoje = new Date();
+      const dia = q.toDateString() === hoje.toDateString() ? "hoje" : q.toLocaleDateString("pt-BR", {day:"2-digit", month:"2-digit"});
+      const d = document.createElement("div"); d.className = "lemb";
+      d.innerHTML = `<span class="mono">${dia} ${q.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit"})}</span>`;
+      d.appendChild(document.createTextNode(it.mensagem));
+      el.appendChild(d);
+    });
+  }
+};
+
+// ---------- relógio ----------
+function relogio(){
+  const a = new Date();
+  $("hora").textContent = a.toLocaleTimeString("pt-BR", {hour:"2-digit", minute:"2-digit", second:"2-digit"});
+  $("data").textContent = a.toLocaleDateString("pt-BR", {weekday:"long", day:"numeric", month:"long"});
+}
+setInterval(relogio, 1000); relogio();
+
+// ---------- interações ----------
+$("reator").addEventListener("click", () => api()?.ativar());
+$("form").addEventListener("submit", e => {
+  e.preventDefault();
+  const t = $("entrada").value.trim(); if (!t) return;
+  $("entrada").value = ""; api()?.enviar_texto(t);
+});
+$("limpar").addEventListener("click", () => {
+  api()?.esquecer(); $("chat").innerHTML = '<div class="vazio">Memória da conversa limpa.</div>';
+});
+document.addEventListener("keydown", e => {
+  if (e.code === "Space" && document.activeElement !== $("entrada")) { e.preventDefault(); api()?.ativar(); }
+  if (e.key === "Escape") api()?.parar_fala();
+});
+
+// ---------- reator animado ----------
+const cv = $("reator"), cx = cv.getContext("2d");
+const W = cv.width, C = W / 2;
+let t = 0, giro = 0;
+
+function rgba(a){ return `rgba(${cor[0]|0},${cor[1]|0},${cor[2]|0},${a})`; }
+
+function arco(r, ini, fim, larg, a){
+  cx.beginPath(); cx.arc(C, C, r, ini, fim);
+  cx.strokeStyle = rgba(a); cx.lineWidth = larg; cx.stroke();
+}
+
+function desenhar(){
+  t += 1/60;
+  for (let i = 0; i < 3; i++) cor[i] += (corAlvo[i] - cor[i]) * 0.08;
+  document.documentElement.style.setProperty("--cor", `rgb(${cor.map(v => v|0).join(",")})`);
+  document.documentElement.style.setProperty("--cor-rgb", cor.map(v => v|0).join(","));
+
+  // energia de cada estado
+  let alvo = 0;
+  if (estadoAtual === "ouvindo") alvo = 0.15 + nivelMic * 1.2;
+  else if (estadoAtual === "falando") alvo = 0.35 + 0.35 * Math.abs(Math.sin(t * 7.3) * Math.sin(t * 3.1 + 1));
+  else if (estadoAtual === "pensando") alvo = 0.3;
+  else alvo = 0.05 + nivelMic * 0.3;
+  nivelSuave += (alvo - nivelSuave) * 0.15;
+
+  const vel = estadoAtual === "pensando" ? 3.2 : estadoAtual === "iniciando" ? 1.6 : estadoAtual === "falando" ? 1.2 : 0.4;
+  giro += vel / 60;
+
+  cx.clearRect(0, 0, W, W);
+
+  // brilho de fundo
+  const g = cx.createRadialGradient(C, C, 20, C, C, 430);
+  g.addColorStop(0, rgba(0.22 + nivelSuave * 0.25)); g.addColorStop(0.35, rgba(0.05)); g.addColorStop(1, rgba(0));
+  cx.fillStyle = g; cx.fillRect(0, 0, W, W);
+
+  // anel de marcações externo
+  cx.save(); cx.translate(C, C); cx.rotate(giro * 0.15);
+  for (let i = 0; i < 120; i++){
+    const a = i / 120 * Math.PI * 2, longo = i % 10 === 0;
+    const r1 = 400, r2 = longo ? 378 : 390;
+    cx.beginPath(); cx.moveTo(Math.cos(a) * r1, Math.sin(a) * r1); cx.lineTo(Math.cos(a) * r2, Math.sin(a) * r2);
+    cx.strokeStyle = rgba(longo ? 0.7 : 0.25); cx.lineWidth = longo ? 3 : 1.5; cx.stroke();
+  }
+  cx.restore();
+
+  // arcos segmentados girando em sentidos opostos
+  for (let i = 0; i < 6; i++){
+    const b = giro * 0.8 + i * Math.PI / 3;
+    arco(350, b, b + Math.PI / 5, 6, 0.55);
+  }
+  for (let i = 0; i < 3; i++){
+    const b = -giro * 1.3 + i * Math.PI * 2 / 3;
+    arco(318, b, b + Math.PI / 2.2, 2, 0.4);
+  }
+  arco(300, 0, Math.PI * 2, 1, 0.18);
+
+  // onda de voz circular
+  cx.beginPath();
+  const pts = 180;
+  for (let i = 0; i <= pts; i++){
+    const a = i / pts * Math.PI * 2;
+    const ondas = Math.sin(a * 6 + t * 4) * 0.5 + Math.sin(a * 11 - t * 6) * 0.3 + Math.sin(a * 17 + t * 9) * 0.2;
+    const r = 235 + ondas * 55 * nivelSuave + nivelSuave * 18;
+    const x = C + Math.cos(a) * r, y = C + Math.sin(a) * r;
+    i ? cx.lineTo(x, y) : cx.moveTo(x, y);
+  }
+  cx.closePath(); cx.strokeStyle = rgba(0.85); cx.lineWidth = 2.5;
+  cx.shadowColor = rgba(0.9); cx.shadowBlur = 18; cx.stroke(); cx.shadowBlur = 0;
+
+  // hexágono interno
+  cx.save(); cx.translate(C, C); cx.rotate(-giro * 0.5);
+  cx.beginPath();
+  for (let i = 0; i <= 6; i++){
+    const a = i / 6 * Math.PI * 2, r = 165;
+    i ? cx.lineTo(Math.cos(a) * r, Math.sin(a) * r) : cx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+  }
+  cx.strokeStyle = rgba(0.35); cx.lineWidth = 2; cx.stroke();
+  cx.restore();
+
+  // pensando: pontos orbitando
+  if (estadoAtual === "pensando" || estadoAtual === "iniciando"){
+    for (let i = 0; i < 3; i++){
+      const a = giro * 2.2 + i * Math.PI * 2 / 3;
+      cx.beginPath(); cx.arc(C + Math.cos(a) * 200, C + Math.sin(a) * 200, 7, 0, Math.PI * 2);
+      cx.fillStyle = rgba(0.95); cx.shadowColor = rgba(1); cx.shadowBlur = 20; cx.fill(); cx.shadowBlur = 0;
+    }
+  }
+
+  // núcleo
+  const rn = 88 + nivelSuave * 22 + Math.sin(t * 2) * 3;
+  const n = cx.createRadialGradient(C, C, 0, C, C, rn);
+  n.addColorStop(0, "rgba(255,255,255,.95)"); n.addColorStop(0.25, rgba(0.9)); n.addColorStop(0.7, rgba(0.25)); n.addColorStop(1, rgba(0));
+  cx.fillStyle = n; cx.beginPath(); cx.arc(C, C, rn, 0, Math.PI * 2); cx.fill();
+  arco(rn + 14, 0, Math.PI * 2, 2, 0.6);
+
+  // nome
+  cx.font = "600 30px Orbitron, Segoe UI"; cx.textAlign = "center"; cx.fillStyle = rgba(0.85);
+  cx.fillText("M A R I N", C, C + 470 - 60);
+
+  requestAnimationFrame(desenhar);
+}
+requestAnimationFrame(desenhar);
+
+// eventos vindos do Python
+function conectar(){
+  const ev = new EventSource("/eventos");
+  ev.onmessage = e => { try { const d = JSON.parse(e.data); hud[d.fn]?.(...d.args); } catch (_) {} };
+  ev.onopen = () => { $("chat").innerHTML = '<div class="vazio">Tudo pronto quando você quiser.</div>'; };
+  ev.onerror = () => { hud.estado("erro", "Sem conexão com a Marin"); };
+}
+conectar();
+</script>
+</body>
+</html>
