@@ -8,7 +8,9 @@ The brain is a **local LLM (Ollama)**, so conversations stay private and cost no
 
 > 🚧 **Work in progress.** Marin already works day to day, and I keep adding features (see the [Roadmap](#roadmap)).
 
-<!-- Add a short demo GIF or video here: ![Marin demo](docs/demo.gif) -->
+<p align="center"><img src="docs/demo.gif" alt="Marin demo" width="640"></p>
+
+▶️ **Full demo video (with voice):** [watch on LinkedIn](https://www.linkedin.com/in/joao-levy-4008521b2/recent-activity/all/)
 
 ## Features
 
@@ -19,6 +21,8 @@ The brain is a **local LLM (Ollama)**, so conversations stay private and cost no
 | Music and YouTube | play a song or artist on YouTube, pause, next track |
 | Reminders and notes | "remind me to drink water in 30 minutes", scheduled reminders, take and read notes |
 | Conversation | keeps short-term context, so you can keep talking for a few seconds without saying her name |
+| E-mail | checks Gmail and warns about new messages from job applications |
+| Client prospecting | opens WhatsApp for each lead from a spreadsheet with a ready-made message, tracks who replied, schedules follow-ups and respects a daily message limit |
 
 Other details:
 
@@ -27,6 +31,8 @@ Other details:
 - **HUD interface** built with `pywebview`, plus a terminal-only mode
 - **Two voice engines:** ElevenLabs (natural, custom voice) with automatic fallback to the free Edge TTS, and to the offline Windows voice without internet
 - **Tool calling:** the LLM picks which skill to run; adding a new skill is a single decorated function
+- **Fast path:** common commands ("what time is it", "pause", "open the spreadsheet") are matched with regex and answered instantly, without calling the LLM
+- **Action guard:** if the LLM answers an action request with text only, Marin holds the reply and makes it try again with a tool call
 
 ## How it works
 
@@ -56,6 +62,10 @@ core/stt.py          speech-to-text (faster-whisper)
 core/cerebro.py      local LLM (Ollama) + tool calling
 core/ferramentas.py  skills (PC control, weather, search, music...)
 core/tts.py          text-to-speech (ElevenLabs, Edge, Windows)
+core/rapido.py       fast-path commands answered without the LLM
+core/prospeccao.py   WhatsApp client prospecting (leads spreadsheet, follow-ups)
+core/gmail.py        Gmail checker for new e-mails
+core/narracao.py     records video narrations with Marin's voice
 core/lembretes.py    reminders
 hud/index.html       interface
 ```
@@ -88,8 +98,9 @@ def abrir_projetos():
 
 ## Roadmap
 
-- [ ] Demo video in this README
-- [ ] More skills (calendar, e-mail, file search)
+- [x] Demo video in this README
+- [x] E-mail check
+- [ ] More skills (calendar, file search)
 - [ ] English language support
 - [ ] Automated tests for the skills
 - [ ] Linux support
@@ -100,3 +111,7 @@ def abrir_projetos():
 
 - GitHub: [@levyespigue14-ux](https://github.com/levyespigue14-ux)
 - LinkedIn: [joao-levy](https://www.linkedin.com/in/joao-levy-4008521b2)
+
+## License
+
+[MIT](LICENSE)
