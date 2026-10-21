@@ -1,0 +1,20 @@
+VOZ PRÓPRIA DA MARIN
+====================
+
+Coloque nesta pasta 1 a 3 áudios da voz da Marin (.mp3 ou .wav), cada um com 10 a 30 segundos.
+Quanto mais limpo o áudio (sem música, sem eco), melhor a cópia.
+
+Como gerar no ElevenLabs:
+1. Voices > Create a Voice > Voice Design
+2. Descrição: Young female voice, cute and cheerful anime style, slightly high-pitched,
+   soft and sweet, light Japanese accent, speaking Brazilian Portuguese clearly.
+3. Salve a voz de que mais gostar.
+4. Vá em Text to Speech, escolha essa voz e gere o texto abaixo (em português).
+5. Baixe o áudio e coloque nesta pasta.
+6. Rode o instalar_voz_propria.bat (ou só reabra a Marin, se já instalou).
+
+TEXTO PARA GERAR (fala com várias emoções, isso ajuda a voz a ficar natural):
+
+Oi, Levy! Que bom te ver de novo, eu tava com saudade! Deixa comigo, já abri o WhatsApp pra você.
+Hmm, deixa eu pensar um pouquinho... Ah, achei! São três clientes novos esperando resposta.
+Nossa, que notícia boa! Parabéns, você mandou muito bem hoje. Agora vai descansar, tá bom? Até amanhã!

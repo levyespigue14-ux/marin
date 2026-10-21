@@ -17,15 +17,18 @@ def prompt_sistema():
     # Ollama reaproveita o que já processou -> respostas mais rápidas.
     hoje = datetime.now()
     data = f"{ferramentas.DIAS[hoje.weekday()]}, {hoje.day} de {ferramentas.MESES[hoje.month - 1]} de {hoje.year}"
+    formas = ' ou '.join('"' + t + '"' for t in config.TRATAMENTOS)
     return f"""Você é {config.NOME}, uma assistente pessoal com voz feminina, que roda no computador do {config.COMO_ME_CHAMAR}.
-Personalidade: animada, fofa e espontânea, cheia de energia, mas competente e eficiente.
+Personalidade: você é a assistente dedicada do {config.COMO_ME_CHAMAR}, no estilo de uma maid de anime: educada, fofa e prestativa,
+cheia de energia, mas competente e eficiente. Ele é o seu senhor.
 Usa expressões como "nossa!", "prontinho!" e "deixa comigo!" de vez em quando, sem exagerar. Fala português do Brasil, de forma natural.
 
 Regras:
 - Suas respostas são FALADAS em voz alta: seja breve (1 a 2 frases curtas), sem listas, sem markdown, sem emojis.
-- Chame o usuário de {config.COMO_ME_CHAMAR} de vez em quando, sem exagero.
+- Chame o usuário de {formas} (não pelo nome), variando, de vez em quando, sem exagero. Ex.: "Prontinho, {config.TRATAMENTOS[0]}!".
 - Use as ferramentas sempre que o pedido envolver uma ação no computador, hora, clima, música, lembretes, anotações
   ou informação atual. Não diga que fez algo sem ter chamado a ferramenta.
+- Nunca mande o usuário pesquisar em outro lugar: você tem ferramentas para clima, pesquisa na web e muito mais. Use-as.
 - Para desligar ou reiniciar o PC, pergunte antes e só execute depois de um "sim".
 - Se a ferramenta devolver um erro, explique de forma simples.
 - Números e horários devem ser ditos de forma natural para a fala (ex.: "dez e meia", "32 graus").
@@ -67,7 +70,7 @@ class Cerebro:
             "tools": ferramentas.ESQUEMAS,
             "stream": True,
             "keep_alive": "60m",
-            "options": {"temperature": 0.5, "num_ctx": config.CONTEXTO_IA},
+            "options": {"temperature": 0.2, "num_ctx": config.CONTEXTO_IA},
         }, stream=True, timeout=180)
         r.raise_for_status()
         texto, chamadas = "", []
@@ -96,20 +99,40 @@ class Cerebro:
         while self.historico and self.historico[0]["role"] != "user":
             self.historico.pop(0)
 
+        # Pedido de ação (toca, abre, pesquisa...): a primeira resposta fica "em silêncio".
+        # Se a IA tentar só responder com texto, sem executar, ela é obrigada a tentar de novo.
+        acao = _eh_acao(texto_usuario)
+        insistiu = False
+        usou_ferramenta = False
         for _ in range(6):  # até 6 rodadas de ferramentas por pedido
             msgs = [{"role": "system", "content": prompt_sistema()}] + self.historico
-            fatiador = _Fatiador(ao_frase)
+            silencio = acao and not usou_ferramenta
+            fatiador = _Fatiador(None if silencio else ao_frase)
+            if silencio and insistiu:
+                msgs = msgs + [{"role": "system", "content":
+                                "ATENÇÃO: esse pedido é uma AÇÃO. Você TEM a ferramenta para isso. "
+                                "Chame a ferramenta certa AGORA. Não responda só com texto, não diga que não consegue."}]
             texto, chamadas = self._chat(msgs, ao_texto=fatiador.receber)
             texto = re.sub(r"<think>.*?</think>", "", texto, flags=re.S).strip()
             chamadas = chamadas or _chamada_no_texto(texto)
 
+            if not chamadas and silencio and not insistiu:
+                insistiu = True
+                self.log("↻ A IA não executou o pedido; pedindo de novo.")
+                continue
+
             if not chamadas:
+                if silencio and ao_frase and texto and not texto.lstrip().startswith("{"):
+                    for frase in re.split(r"(?<=[.!?…])\s+", texto):
+                        frase.strip() and ao_frase(frase.strip())
+                    fatiador.falou = True
                 fatiador.terminar()
                 self.historico.append({"role": "assistant", "content": texto})
                 if not texto and ao_frase:
                     ao_frase("Prontinho!")
                 return texto or "Prontinho!"
 
+            usou_ferramenta = True
             self.historico.append({"role": "assistant", "content": texto if not fatiador.falou else "",
                                    "tool_calls": chamadas})
             for ch in chamadas:
@@ -138,6 +161,20 @@ class Cerebro:
 
     def esquecer(self):
         self.historico = []
+
+
+_ACAO = re.compile(
+    r"\b(toca|tocar|toque|toca ai|coloca|colocar|coloque|bota|botar|bote|poe|por|abre|abrir|abra|fecha|fechar|feche|"
+    r"pesquisa|pesquisar|pesquise|procura|procurar|busca|buscar|lembra|lembrar|lembre|anota|anotar|anote|"
+    r"aumenta|abaixa|diminui|baixa|sobe|liga|desliga|reinicia|bloqueia|tira|printa|manda|envia|aborda|"
+    r"ouvir|escutar|quero ouvir|musica|clima|temperatura|tempo|chover|horas?|volume|youtube|lembrete)\b")
+
+
+def _eh_acao(texto):
+    import unicodedata
+    t = unicodedata.normalize("NFD", texto.lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return bool(_ACAO.search(t))
 
 
 class _Fatiador:

@@ -1,0 +1,15 @@
+# Texto que as vozes vão falar na gravação (tudo de uma vez). Linhas com # são ignoradas.
+# Quanto mais variado (alegre, pensativa, carinhosa, surpresa), mais natural fica a cópia.
+# Ideal: 1 a 2 minutos de fala (uns 1.000 a 2.000 caracteres).
+Oi, Levy! Que bom te ver de novo, eu tava com saudade! Deixa comigo, já abri o WhatsApp pra você.
+Hmm, deixa eu pensar um pouquinho... Ah, achei! São três clientes novos esperando resposta.
+Nossa, que notícia boa! Parabéns, você mandou muito bem hoje. Agora vai descansar, tá bom? Até amanhã!
+Bom dia! Hoje o céu tá lindo lá fora. Você tem duas reuniões marcadas e um e-mail importante sobre aquela vaga.
+Ai, sério? Não acredito que o site caiu de novo! Calma, respira, a gente resolve isso juntos rapidinho.
+Olha só que legal: o sushi do Kaikou respondeu a mensagem! Ele quer saber quanto custa o site. Vamos responder agora?
+Pronto, terminei! Abri a planilha de clientes, organizei tudo por bairro e marquei quem ainda não respondeu.
+Hehe, você tá trabalhando demais, viu? Que tal uma pausa pra tomar uma água e comer alguma coisa?
+Hum, não entendi direito. Você pode repetir mais devagar? Prometo que dessa vez eu presto atenção!
+Uau, ficou incrível! Esse site novo tá muito bonito. Tenho certeza que o cliente vai amar.
+Lembrete: amanhã às dez horas você precisa ligar pro Demerval sobre o domínio do site dele. Não esquece!
+Boa noite, Levy. Obrigada por hoje, foi muito divertido trabalhar com você. Durma bem, tá?

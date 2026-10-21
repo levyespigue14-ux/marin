@@ -18,6 +18,16 @@ Dê dois cliques em **`iniciar.bat`**.
 - **Esc** ou clicar no círculo enquanto ela fala faz ela parar.
 - Também dá pra digitar na caixa de texto.
 
+## Ela some e aparece quando você chama
+
+A Marin abre minimizada e fica escutando em segundo plano. Quando você diz **"Marin"** (ou aperta Ctrl+Alt+M), a janela aparece na sua frente; uns 20 segundos depois da conversa, ela minimiza de novo. No `config.py`: `INICIAR_ESCONDIDA = False` para abrir sempre visível e `ESCONDER_DEPOIS = 0` para ela não sumir.
+
+## Abrir junto com o Windows
+
+Dê dois cliques em **`inicio_automatico.bat`**. Ele coloca um atalho da Marin na pasta de inicialização do Windows: quando você ligar o PC, ela abre sozinha (a janela preta fica minimizada e espera o Ollama ficar pronto antes de carregar).
+
+Para desligar, rode o mesmo arquivo de novo.
+
 ## O que ela sabe fazer
 
 | Área | Exemplos |
@@ -26,6 +36,19 @@ Dê dois cliques em **`iniciar.bat`**.
 | Hora, clima, pesquisa | "que dia é hoje?", "vai chover amanhã?", "clima em São Paulo", "pesquisa o preço da RTX 4060" |
 | Música e YouTube | "toca Matuê no YouTube", "pausa", "próxima música" |
 | Lembretes e anotações | "me lembra de beber água daqui 30 minutos", "lembrete às 19h pra aula", "quais meus lembretes?", "anota: ligar pro cliente", "lê minhas anotações" |
+
+## Prospecção de clientes no WhatsApp
+
+A Marin abre o WhatsApp de cada cliente com uma mensagem de venda personalizada já escrita. **Você confere e aperta Enviar** — ela nunca envia sozinha, porque mensagem automática em massa faz o WhatsApp banir o número.
+
+1. Diga **"Marin, abre a planilha de leads"** e preencha uma linha por empresa: `nome; nicho; cidade; whatsapp; instagram; avaliacao`. Deixe o `status` vazio (vira "novo").
+2. No `config.py`, em `LINKS_MODELO`, coloque o link do site-modelo de cada nicho (vai na primeira mensagem).
+3. Diga **"Marin, aborda 10 clientes de sushi"** (ou "de academia em Teresina", ou só "aborda os clientes").
+4. Ela abre a conversa pronta. Envie e diga **"Marin, próximo"**. Para pular: **"pula"**. Para parar: **"para"**.
+5. Depois de 3 dias, diga **"Marin, faz os follow-ups"** para mandar a segunda mensagem a quem não respondeu.
+6. Quando alguém responder: **"Marin, a Sushi X respondeu"** ou **"fechei com a Sushi X"**. E **"Marin, como está a prospecção?"** dá o resumo.
+
+As mensagens ficam em `core/prospeccao.py` (`ABORDAGENS` e `FOLLOWUPS`), pode editar à vontade. A planilha fica em `data/leads.csv` e não vai pro GitHub.
 
 ## Voz fofa (ElevenLabs)
 

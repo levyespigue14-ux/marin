@@ -66,6 +66,24 @@ class Marin:
         self.pedido_manual = threading.Event()     # clique no reator / atalho
         self.textos = queue.Queue()                # mensagens digitadas na interface
         self.ouvido = self.stt = self.voz = self.cerebro = None
+        self._timer_esconder = None
+
+    # ---------- aparecer quando chamada / sumir depois ----------
+    def aparecer(self):
+        if self._timer_esconder:
+            self._timer_esconder.cancel()
+            self._timer_esconder = None
+        self.ui.mostrar()
+
+    def sumir_depois(self):
+        segundos = getattr(config, "ESCONDER_DEPOIS", 0)
+        if not segundos:
+            return
+        if self._timer_esconder:
+            self._timer_esconder.cancel()
+        self._timer_esconder = threading.Timer(segundos, self.ui.esconder)
+        self._timer_esconder.daemon = True
+        self._timer_esconder.start()
 
     # ---------- chamadas vindas da interface ----------
     def ativar(self):
@@ -127,6 +145,11 @@ class Marin:
         self.lembretes.iniciar()
         self._atualizar_lembretes()
 
+        from core import gmail
+        gmail.VIGIA = gmail.VigiaGmail(ao_chegar=self._avisar_email, log=self.ui.log)
+        if gmail.VIGIA.iniciar():
+            self.ui.log("Gmail: de olho nos e-mails do Workana e das vagas.")
+
         if config.ATALHO_GLOBAL:
             try:
                 import keyboard
@@ -161,11 +184,13 @@ class Marin:
             comando = extrair_comando(texto)
             if comando is None:
                 continue                      # não era com ela
+            self.aparecer()
             if comando == "":
                 self._modo_comando()
             else:
                 self.processar(comando)
                 self._conversa()
+            self.sumir_depois()
 
     def _tratar_entradas(self):
         """Trata texto digitado e clique/atalho. Devolve True se tratou algo."""
@@ -174,7 +199,9 @@ class Marin:
             return True
         if self.pedido_manual.is_set():
             self.pedido_manual.clear()
+            self.aparecer()
             self._modo_comando()
+            self.sumir_depois()
             return True
         return False
 
@@ -193,8 +220,16 @@ class Marin:
         bip("ativar")
         self.ouvido.limpar()
         self.ouvido.mudo.clear()
-        texto = self._ouvir_pedido(timeout=7)
+        # no atalho/clique grava direto, sem depender do volume do microfone
+        self.ui.estado("ouvindo")
+        self.cancelar_escuta.clear()
+        audio = self.ouvido.gravar_direto(parar=self.cancelar_escuta)
+        texto = None
+        if audio is not None:
+            self.ui.estado("pensando", "transcrevendo")
+            texto = self.stt.transcrever(audio)
         if not texto:
+            self.ui.log("Não entendi nada. Fale mais perto do microfone.")
             return
         comando = extrair_comando(texto)
         self.processar(comando if comando else texto)
@@ -271,13 +306,27 @@ class Marin:
 
     def _avisar_lembrete(self, mensagem):
         from core.audio import bip
+        self.aparecer()
         self.ui.mensagem("marin", f"⏰ Lembrete: {mensagem}")
         self._atualizar_lembretes()
         with self.fala_trava:
             self.ouvido.mudo.set()
             bip("ativar")
             self.ouvido.mudo.clear()
-        self.falar(f"{config.COMO_ME_CHAMAR}, lembrete: {mensagem}")
+        self.falar(f"{config.tratamento().capitalize()}, lembrete: {mensagem}")
+        self.sumir_depois()
+
+    def _avisar_email(self, origem, assunto):
+        from core.audio import bip
+        assunto = assunto if len(assunto) <= 110 else assunto[:107] + "..."
+        self.aparecer()
+        self.ui.mensagem("marin", f"📩 {origem}: {assunto}")
+        with self.fala_trava:
+            self.ouvido.mudo.set()
+            bip("ativar")
+            self.ouvido.mudo.clear()
+        self.falar(f"{config.tratamento().capitalize()}, chegou e-mail do {origem}: {assunto}")
+        self.sumir_depois()
 
     def _atualizar_lembretes(self):
         if getattr(self, "lembretes", None):

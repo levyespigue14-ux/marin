@@ -1,6 +1,8 @@
 """Voz da Marin.
 
 Motores:
+  - Voz própria (XTTS: imita os áudios da pasta voz_marin/, roda no PC, grátis)
+  - Kokoro     (voz local no PC: grátis, sem limite, sem internet)
   - ElevenLabs (voz mais natural/fofa; precisa de chave, tem plano grátis)
   - edge-tts   (grátis, reserva)
   - voz do Windows (offline, último recurso)
@@ -37,7 +39,18 @@ class Voz:
         self._n = 0
         self._n_trava = threading.Lock()
         self._eleven_ok = bool(getattr(config, "ELEVENLABS_CHAVE", ""))
-        self.motor = "ElevenLabs" if self._eleven_ok else "Edge"
+        # Com o ElevenLabs como voz principal, a voz própria (XTTS, pesada) só é carregada
+        # se o ElevenLabs falhar. Assim a Marin abre bem mais rápido e sobra placa de vídeo pra IA.
+        self._propria_adiada = (getattr(config, "VOZ_PRINCIPAL", "propria") == "elevenlabs" and self._eleven_ok
+                                and getattr(config, "USAR_VOZ_PROPRIA", False))
+        self._propria = None if self._propria_adiada else _carregar_voz_propria(log)
+        self._kokoro = None if (self._propria or self._propria_adiada) else _carregar_kokoro(log)
+        if getattr(config, "VOZ_PRINCIPAL", "propria") == "elevenlabs" and self._eleven_ok:
+            self.motor = "ElevenLabs (reserva: " + ("voz própria)" if (self._propria or self._propria_adiada) else "Edge)")
+        elif self._propria:
+            self.motor = "Voz própria (local)"
+        else:
+            self.motor = "Kokoro (local)" if self._kokoro else ("ElevenLabs" if self._eleven_ok else "Edge")
 
     # ------------------------------------------------------------------
     # API usada pelo resto da Marin
@@ -75,6 +88,27 @@ class Voz:
         texto = limpar_para_fala(texto)
         if not texto:
             return None
+        if getattr(config, "VOZ_PRINCIPAL", "propria") == "elevenlabs" and self._eleven_ok:
+            try:
+                return self._gerar_eleven(texto)
+            except Exception as e:
+                self.log(f"Voz ElevenLabs falhou ({_resumo(e)}); usando a voz própria.")
+                if "401" in str(e) or "quota" in str(e).lower():
+                    self._eleven_ok = False
+                    self.log("Créditos do ElevenLabs acabaram: a Marin passa a usar a voz própria (grátis).")
+        if self._propria is None and self._propria_adiada:
+            self._propria_adiada = False
+            self._propria = _carregar_voz_propria(self.log)
+        if self._propria:
+            try:
+                return self._gerar_propria(texto)
+            except Exception as e:
+                self.log(f"Voz própria falhou ({_resumo(e)}); usando a reserva.")
+        if self._kokoro:
+            try:
+                return self._gerar_kokoro(texto)
+            except Exception as e:
+                self.log(f"Voz local falhou ({_resumo(e)}); usando a voz online.")
         if self._eleven_ok:
             try:
                 return self._gerar_eleven(texto)
@@ -83,19 +117,60 @@ class Voz:
                 if "401" in str(e) or "quota" in str(e).lower():
                     self._eleven_ok = False   # chave errada ou créditos acabaram
                     self.motor = "Edge"
+                    self.log("ATENÇÃO: a voz do ElevenLabs parou (créditos acabaram ou chave inválida). "
+                             "Rode o testar_voz.bat para ver o motivo. Até lá ela fala com a voz reserva.")
         try:
             return self._gerar_edge(texto)
         except Exception as e:
             self.log(f"Voz online falhou ({_resumo(e)}); usando voz do Windows.")
             return ("offline", texto)
 
+    def _voz_eleven_id(self):
+        """Acha o ID da voz pelo nome (ELEVENLABS_VOZ_NOME) uma vez só; senão usa o ELEVENLABS_VOZ_ID."""
+        if not hasattr(self, "_eleven_id"):
+            self._eleven_id = config.ELEVENLABS_VOZ_ID
+            nome = (getattr(config, "ELEVENLABS_VOZ_NOME", "") or "").strip().lower()
+            if nome:
+                try:
+                    r = requests.get("https://api.elevenlabs.io/v1/voices",
+                                     headers={"xi-api-key": config.ELEVENLABS_CHAVE}, timeout=15)
+                    for v in r.json().get("voices", []):
+                        if v.get("name", "").strip().lower() == nome:
+                            self._eleven_id = v["voice_id"]
+                            break
+                    else:
+                        self.log(f"Não achei a voz '{nome}' no ElevenLabs; usando o ELEVENLABS_VOZ_ID.")
+                except Exception as e:
+                    self.log(f"Não consegui listar as vozes do ElevenLabs ({_resumo(e)}).")
+        return self._eleven_id
+
     def _gerar_eleven(self, texto):
+        """Usa o cache: frase que já foi falada antes não gasta crédito de novo (fica salva para sempre)."""
+        import hashlib
+        import shutil
+        chave_cache = hashlib.sha1(f"{self._voz_eleven_id()}|{texto.strip().lower()}".encode("utf-8")).hexdigest()
+        pasta_cache = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "cache_voz")
+        no_cache = os.path.join(pasta_cache, chave_cache + ".mp3")
+        if os.path.exists(no_cache):
+            return no_cache
+        caminho = self._gerar_eleven_api(texto)
+        if len(texto) <= getattr(config, "CACHE_VOZ_MAX_CARACTERES", 200):
+            try:
+                os.makedirs(pasta_cache, exist_ok=True)
+                shutil.copy(caminho, no_cache)
+            except Exception:
+                pass
+        return caminho
+
+    def _gerar_eleven_api(self, texto):
         """Tenta o modelo escolhido; se a conta não tiver acesso a ele, cai para um mais simples.
         Sempre pede sotaque brasileiro (language_code) quando o modelo aceita."""
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{config.ELEVENLABS_VOZ_ID}"
+        url = f"https://api.elevenlabs.io/v1/text-to-speech/{self._voz_eleven_id()}"
         if not hasattr(self, "_combos"):
-            modelos = [config.ELEVENLABS_MODELO] + [m for m in ("eleven_v4_turbo", "eleven_flash_v2_5")
-                                                     if m != config.ELEVENLABS_MODELO]
+            # se o modelo escolhido não estiver disponível, cai primeiro no multilingual_v2
+            # (o mais natural em português); o flash é o último porque soa mais robótico
+            reservas = ("eleven_multilingual_v2", "eleven_v4_turbo", "eleven_turbo_v2_5", "eleven_flash_v2_5")
+            modelos = [config.ELEVENLABS_MODELO] + [m for m in reservas if m != config.ELEVENLABS_MODELO]
             self._combos = [(m, lang) for m in modelos for lang in ("pt", None)]
         ultimo = None
         for modelo, lang in list(self._combos):
@@ -130,6 +205,49 @@ class Voz:
         caminho = self._novo_arquivo()
         with open(caminho, "wb") as f:
             f.write(r.content)
+        return caminho
+
+    def _gerar_propria(self, texto):
+        import wave
+
+        import numpy as np
+
+        modelo, latente, falante, trava = self._propria
+        with trava:   # o modelo usa a placa de vídeo: uma frase por vez
+            out = modelo.inference(texto, "pt", latente, falante,
+                                   temperature=float(getattr(config, "VOZ_PROPRIA_EMOCAO", 0.65)),
+                                   top_p=0.8, top_k=40, repetition_penalty=10.0,
+                                   speed=float(getattr(config, "VOZ_PROPRIA_VELOCIDADE", 1.0)),
+                                   enable_text_splitting=True)
+        wav = out["wav"]
+        if hasattr(wav, "cpu"):
+            wav = wav.cpu().numpy()
+        pcm = (np.clip(np.asarray(wav, dtype=np.float32), -1, 1) * 32767).astype(np.int16)
+        caminho = self._novo_arquivo()[:-4] + ".wav"
+        with wave.open(caminho, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(24000)
+            w.writeframes(pcm.tobytes())
+        return caminho
+
+    def _gerar_kokoro(self, texto):
+        import wave
+
+        import numpy as np
+
+        k, estilo = self._kokoro
+        agudo = max(0.8, min(1.4, float(getattr(config, "VOZ_LOCAL_AGUDO", 1.0))))
+        # gera um pouco mais devagar e toca mais rápido: a voz fica mais aguda e a velocidade final igual
+        amostras, taxa = k.create(texto, voice=estilo,
+                                  speed=getattr(config, "VOZ_LOCAL_VELOCIDADE", 1.0) / agudo, lang="pt-br")
+        caminho = self._novo_arquivo()[:-4] + ".wav"
+        pcm = (np.clip(amostras, -1, 1) * 32767).astype(np.int16)
+        with wave.open(caminho, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(int(taxa * agudo))
+            w.writeframes(pcm.tobytes())
         return caminho
 
     def _gerar_edge(self, texto):
@@ -226,6 +344,72 @@ class _Fala:
 
 
 # ----------------------------------------------------------------------
+_KOKORO_CACHE = {}
+_PROPRIA_CACHE = {}
+_EXT_AUDIO = (".wav", ".mp3", ".flac", ".ogg", ".m4a")
+
+
+def _carregar_voz_propria(log=print):
+    """Carrega o XTTS e "aprende" a voz dos áudios da pasta voz_marin/ (uma vez só)."""
+    if not getattr(config, "USAR_VOZ_PROPRIA", False):
+        return None
+    if "v" in _PROPRIA_CACHE:
+        return _PROPRIA_CACHE["v"]
+    _PROPRIA_CACHE["v"] = None
+    pasta = getattr(config, "PASTA_VOZ_MARIN", "voz_marin")
+    arquivos = [f for f in os.listdir(pasta) if f.lower().endswith(_EXT_AUDIO)] if os.path.isdir(pasta) else []
+    # se existir a versão .wav limpa de um áudio, ignora o original (mp3) para não contar duas vezes
+    stems_wav = {os.path.splitext(f)[0].lower() for f in arquivos if f.lower().endswith(".wav")}
+    audios = sorted(os.path.join(pasta, f) for f in arquivos
+                    if f.lower().endswith(".wav") or os.path.splitext(f)[0].lower() not in stems_wav)
+    if not audios:
+        return None
+    try:
+        os.environ.setdefault("COQUI_TOS_AGREED", "1")   # aceito no instalar_voz_propria.bat
+        import torch
+        from TTS.api import TTS
+        log("Carregando a voz própria da Marin (na primeira vez demora)...")
+        dispositivo = "cuda" if torch.cuda.is_available() else "cpu"
+        tts = TTS("tts_models/multilingual/multi-dataset/xtts_v2").to(dispositivo)
+        modelo = tts.synthesizer.tts_model
+        # usa o áudio inteiro (até 60 s) para captar melhor o timbre
+        latente, falante = modelo.get_conditioning_latents(audio_path=audios, gpt_cond_len=30,
+                                                           gpt_cond_chunk_len=6, max_ref_length=60)
+        _PROPRIA_CACHE["v"] = (modelo, latente, falante, threading.Lock())
+        log(f"Voz própria carregada ({len(audios)} áudio(s), usando {'placa de vídeo' if dispositivo == 'cuda' else 'processador'}).")
+    except Exception as e:
+        log(f"Não consegui carregar a voz própria ({_resumo(e)}). Rode o instalar_voz_propria.bat.")
+    return _PROPRIA_CACHE["v"]
+
+
+
+def _carregar_kokoro(log=print):
+    """Carrega o modelo local uma vez só. Devolve (kokoro, estilo_da_voz) ou None."""
+    if not getattr(config, "USAR_VOZ_LOCAL", False):
+        return None
+    if "k" in _KOKORO_CACHE:
+        return _KOKORO_CACHE["k"]
+    pasta = getattr(config, "PASTA_MODELOS", "modelos")
+    modelo = os.path.join(pasta, "kokoro-v1.0.onnx")
+    vozes = os.path.join(pasta, "voices-v1.0.bin")
+    if not (os.path.exists(modelo) and os.path.exists(vozes)):
+        log("Voz local não instalada (rode o instalar_voz_local.bat). Usando a voz online.")
+        _KOKORO_CACHE["k"] = None
+        return None
+    try:
+        from kokoro_onnx import Kokoro
+        k = Kokoro(modelo, vozes)
+        mistura = getattr(config, "VOZ_LOCAL_MISTURA", {"pf_dora": 1.0}) or {"pf_dora": 1.0}
+        total = sum(mistura.values()) or 1
+        estilo = sum(k.get_voice_style(v) * (p / total) for v, p in mistura.items())
+        _KOKORO_CACHE["k"] = (k, estilo)
+        log("Voz local (Kokoro) carregada.")
+    except Exception as e:
+        log(f"Não consegui carregar a voz local ({_resumo(e)}). Usando a voz online.")
+        _KOKORO_CACHE["k"] = None
+    return _KOKORO_CACHE["k"]
+
+
 def dividir_frases(texto: str):
     partes = re.split(r"(?<=[.!?…])\s+", texto.strip())
     return [p for p in partes if p.strip()]
@@ -233,6 +417,9 @@ def dividir_frases(texto: str):
 
 def limpar_para_fala(texto: str) -> str:
     """Tira markdown, links e emojis antes de falar."""
+    pronuncia = getattr(config, "PRONUNCIA_NOME", "")
+    if pronuncia:
+        texto = re.sub(rf"\b{re.escape(config.COMO_ME_CHAMAR)}\b", pronuncia, texto)
     texto = re.sub(r"```.*?```", " ", texto, flags=re.S)
     texto = re.sub(r"https?://\S+", "o link", texto)
     texto = re.sub(r"[*_#`>|]", "", texto)

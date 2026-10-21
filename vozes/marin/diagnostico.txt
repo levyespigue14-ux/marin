@@ -1,0 +1,7 @@
+Arquivos em voz_marin: ['diagnostico.txt', 'marin.mp3', 'teste_saida.wav']
+torch 2.8.0+cu128 | CUDA: True
+coqui-tts OK (0.27.5)
+Carregando a voz própria da Marin (na primeira vez demora)...
+Voz própria carregada (2 áudio(s), usando placa de vídeo).
+>>> Motor de voz em uso: ElevenLabs (reserva: voz própria)
+Áudio gerado: C:\Users\king0\AppData\Local\Temp\marin_8h2fean7\fala_1.mp3

@@ -1,0 +1,7 @@
+Arquivos em voz_marin: ['LEIA-ME.txt', 'marin_referencia.mp3', 'marin_referencia.wav']
+torch 2.8.0+cu128 | CUDA: True
+coqui-tts OK (0.27.5)
+Carregando a voz própria da Marin (na primeira vez demora)...
+Voz própria carregada (1 áudio(s), usando placa de vídeo).
+>>> Motor de voz em uso: Voz própria (local)
+Áudio gerado: C:\Users\king0\AppData\Local\Temp\marin_x_ud14b2\fala_1.wav

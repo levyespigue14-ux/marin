@@ -135,6 +135,8 @@ window.hud = {
     d.innerHTML = `<span class="quem mono">${quem === "voce" ? "VOCÊ" : "MARIN"}</span>`;
     d.appendChild(document.createTextNode(texto));
     chat.appendChild(d);
+    if (quem === "marin" && /conclu[ií]mos com sucesso|miss[aã]o cumprida/i.test(texto))
+      comemorandoAte = performance.now() + 10000;
     while (chat.children.length > 60) chat.firstChild.remove();
     chat.scrollTop = chat.scrollHeight;
   },
@@ -194,6 +196,64 @@ const W = cv.width, C = W / 2;
 let t = 0, giro = 0;
 
 function rgba(a){ return `rgba(${cor[0]|0},${cor[1]|0},${cor[2]|0},${a})`; }
+
+// fotos da Marin: uma por momento (hud/marin_<momento>.jpg). Se faltar alguma, usa hud/marin.jpg.
+// Sem nenhuma foto, fica o núcleo de energia.
+const MOMENTOS = ["aguardando", "ouvindo", "pensando", "falando", "concluido"];
+const fotos = {};
+let fotoPadrao = null;
+function carregar(url, ok){ const im = new Image(); im.onload = () => ok(im); im.src = url + "?" + Date.now(); }
+carregar("/avatar", im => fotoPadrao = im);
+MOMENTOS.forEach(m => carregar("/avatar/" + m, im => fotos[m] = im));
+
+let comemorandoAte = 0;           // depois de "concluímos com sucesso", comemora por alguns segundos
+let fotoAtual = null, fotoAnterior = null, troca = 1;
+
+function fotoDoMomento(){
+  if (performance.now() < comemorandoAte && fotos.concluido) return fotos.concluido;
+  const m = estadoAtual === "iniciando" || estadoAtual === "erro" ? "aguardando" : estadoAtual;
+  return fotos[m] || fotos.aguardando || fotoPadrao;
+}
+
+function desenharFoto(im, r, sobe, alfa){
+  const esc = Math.max((r * 2) / im.width, (r * 2) / im.height);
+  const w = im.width * esc, h = im.height * esc;
+  cx.globalAlpha = alfa;
+  cx.drawImage(im, C - w / 2, C + sobe - h / 2, w, h);
+  cx.globalAlpha = 1;
+}
+
+function desenharAvatar(){
+  const alvo = fotoDoMomento();
+  if (alvo !== fotoAtual){ fotoAnterior = fotoAtual; fotoAtual = alvo; troca = 0; }
+  troca = Math.min(1, troca + 1 / 15);   // troca suave em ~0,25s
+
+  // respira devagar parada, "pula" um pouco quando fala, aproxima quando ouve
+  const respira = Math.sin(t * 1.6) * 0.012;
+  const fala = estadoAtual === "falando" ? nivelSuave * 0.06 : 0;
+  const ouve = estadoAtual === "ouvindo" ? 0.025 : 0;
+  const r = 185 * (1 + respira + fala + ouve);
+  const sobe = Math.sin(t * 1.6) * 3 - fala * 40;
+
+  // aura atrás da foto
+  const aura = cx.createRadialGradient(C, C + sobe, r * 0.7, C, C + sobe, r * 1.35);
+  aura.addColorStop(0, rgba(0.55 + nivelSuave * 0.4)); aura.addColorStop(1, rgba(0));
+  cx.fillStyle = aura; cx.beginPath(); cx.arc(C, C + sobe, r * 1.35, 0, Math.PI * 2); cx.fill();
+
+  // foto recortada em círculo, preenchendo sem distorcer
+  cx.save();
+  cx.beginPath(); cx.arc(C, C + sobe, r, 0, Math.PI * 2); cx.clip();
+  if (fotoAnterior && troca < 1) desenharFoto(fotoAnterior, r, sobe, 1);
+  desenharFoto(fotoAtual, r, sobe, troca);
+  // leve brilho da cor do estado por cima
+  cx.fillStyle = rgba(0.08 + nivelSuave * 0.12); cx.fillRect(C - r, C + sobe - r, r * 2, r * 2);
+  cx.restore();
+
+  // borda luminosa
+  cx.beginPath(); cx.arc(C, C + sobe, r + 4, 0, Math.PI * 2);
+  cx.strokeStyle = rgba(0.9); cx.lineWidth = 4;
+  cx.shadowColor = rgba(1); cx.shadowBlur = 25 + nivelSuave * 30; cx.stroke(); cx.shadowBlur = 0;
+}
 
 function arco(r, ini, fim, larg, a){
   cx.beginPath(); cx.arc(C, C, r, ini, fim);
@@ -277,12 +337,16 @@ function desenhar(){
     }
   }
 
+  if (fotoPadrao || Object.keys(fotos).length){
+    desenharAvatar();
+  } else {
   // núcleo
   const rn = 88 + nivelSuave * 22 + Math.sin(t * 2) * 3;
   const n = cx.createRadialGradient(C, C, 0, C, C, rn);
   n.addColorStop(0, "rgba(255,255,255,.95)"); n.addColorStop(0.25, rgba(0.9)); n.addColorStop(0.7, rgba(0.25)); n.addColorStop(1, rgba(0));
   cx.fillStyle = n; cx.beginPath(); cx.arc(C, C, rn, 0, Math.PI * 2); cx.fill();
   arco(rn + 14, 0, Math.PI * 2, 2, 0.6);
+  }
 
   // nome
   cx.font = "600 30px Orbitron, Segoe UI"; cx.textAlign = "center"; cx.fillStyle = rgba(0.85);

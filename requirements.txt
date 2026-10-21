@@ -9,3 +9,4 @@ pywebview>=5
 ddgs
 Pillow
 keyboard
+kokoro-onnx>=0.4

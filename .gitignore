@@ -13,3 +13,15 @@ data/
 # IDE
 .idea/
 .vscode/
+
+# Voz local (arquivos grandes, baixados pelo instalar_voz_local.bat)
+modelos/
+
+# Audios da voz da Marin
+voz_marin/*.mp3
+voz_marin/*.wav
+vozes/**/*.mp3
+vozes/**/*.wav
+
+# Arquivos de trabalho do Claude
+Claude outputs/

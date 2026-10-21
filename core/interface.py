@@ -35,6 +35,12 @@ class InterfaceTerminal:
     def lembretes(self, itens):
         pass
 
+    def mostrar(self):
+        pass
+
+    def esconder(self):
+        pass
+
 
 class InterfaceHUD(InterfaceTerminal):
     """Janela pywebview que carrega o HUD de um servidor local.
@@ -54,9 +60,11 @@ class InterfaceHUD(InterfaceTerminal):
         self._servidor = self._criar_servidor()
         porta = self._servidor.server_address[1]
         threading.Thread(target=self._servidor.serve_forever, daemon=True).start()
+        import config
         self.janela = webview.create_window(
             "Marin", url=f"http://127.0.0.1:{porta}/", width=1100, height=700,
             min_size=(760, 520), background_color="#05070d",
+            minimized=getattr(config, "INICIAR_ESCONDIDA", False),
         )
 
     # ---------- servidor local ----------
@@ -77,6 +85,28 @@ class InterfaceHUD(InterfaceTerminal):
                     self.send_header("Content-Length", str(len(corpo)))
                     self.end_headers()
                     self.wfile.write(corpo)
+                elif self.path.split("?")[0].startswith("/avatar"):
+                    # fotos da Marin: /avatar -> hud/marin.jpg ; /avatar/falando -> hud/marin_falando.jpg
+                    # (aceita .png / .jpg / .jpeg / .webp)
+                    nome = self.path.split("?")[0][len("/avatar"):].strip("/")
+                    if nome and not nome.isalnum():
+                        self.send_error(404)
+                        return
+                    base = "marin_" + nome if nome else "marin"
+                    tipos = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp"}
+                    for ext, tipo in tipos.items():
+                        caminho = os.path.join(RAIZ, "hud", base + ext)
+                        if os.path.exists(caminho):
+                            with open(caminho, "rb") as f:
+                                corpo = f.read()
+                            self.send_response(200)
+                            self.send_header("Content-Type", tipo)
+                            self.send_header("Content-Length", str(len(corpo)))
+                            self.send_header("Cache-Control", "no-cache")
+                            self.end_headers()
+                            self.wfile.write(corpo)
+                            return
+                    self.send_error(404)
                 elif self.path == "/eventos":
                     self.send_response(200)
                     self.send_header("Content-Type", "text/event-stream")
@@ -164,6 +194,25 @@ class InterfaceHUD(InterfaceTerminal):
 
     def lembretes(self, itens):
         self._enviar("lembretes", itens)
+
+    # ---------- aparecer / sumir ----------
+    def mostrar(self):
+        """Traz a janela para a frente (quando você chama "Marin")."""
+        try:
+            self.janela.restore()
+            self.janela.show()
+            # o Windows não deixa um programa em segundo plano "roubar" o foco;
+            # ficar por cima por um instante garante que ela aparece na sua frente
+            self.janela.on_top = True
+            threading.Timer(0.6, lambda: setattr(self.janela, "on_top", False)).start()
+        except Exception as e:
+            print(f"[hud] não consegui mostrar a janela: {e}")
+
+    def esconder(self):
+        try:
+            self.janela.minimize()
+        except Exception as e:
+            print(f"[hud] não consegui minimizar a janela: {e}")
 
     def iniciar(self, funcao):
         """Abre a janela (precisa ser na thread principal) e roda `funcao` em paralelo."""

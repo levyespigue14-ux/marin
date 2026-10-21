@@ -27,9 +27,62 @@ ESQUEMAS = []      # formato de "tools" do Ollama
 LEMBRETES = None   # preenchido pelo main.py
 
 
+def maximizar_depois(segundos=8):
+    """Espera a janela que acabou de ser aberta aparecer na frente e maximiza ela.
+    Roda em segundo plano, pra Marin não ficar esperando. Nunca mexe na janela da própria Marin."""
+    if not WINDOWS or not getattr(config, "MAXIMIZAR_JANELAS", True):
+        return
+    import threading
+    import time
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+
+    def _pid(hwnd):
+        pid = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        return pid.value
+
+    def _janelas():
+        lista = set()
+
+        @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        def _cada(hwnd, _):
+            if user32.IsWindowVisible(hwnd) and user32.GetWindowTextLengthW(hwnd) and not user32.GetWindow(hwnd, 4):
+                lista.add(hwnd)        # GetWindow(...,4) = tem "dono": é caixinha/popup, não janela principal
+            return True
+
+        user32.EnumWindows(_cada, 0)
+        return lista
+
+    antes = _janelas()
+    frente_antes = user32.GetForegroundWindow()
+    eu = os.getpid()
+
+    def _vigiar():
+        fim = time.time() + segundos
+        while time.time() < fim:
+            time.sleep(0.25)
+            novas = [h for h in _janelas() - antes if _pid(h) != eu]
+            frente = user32.GetForegroundWindow()
+            alvo = None
+            if frente and frente != frente_antes and _pid(frente) != eu and user32.IsWindowVisible(frente):
+                alvo = frente
+            elif novas:
+                alvo = novas[0]
+            if alvo:
+                time.sleep(0.3)                     # deixa a janela terminar de abrir
+                user32.ShowWindow(alvo, 3)           # 3 = maximizar
+                user32.SetForegroundWindow(alvo)
+                return
+
+    threading.Thread(target=_vigiar, daemon=True).start()
+
+
 def abrir_url(url):
     """Abre um link no navegador padrão. Tenta 3 jeitos, porque o webbrowser do Python
     às vezes falha calado no Windows (principalmente fora da thread principal)."""
+    maximizar_depois()
     if WINDOWS:
         try:
             os.startfile(url)
@@ -127,10 +180,77 @@ def _atalhos_menu_iniciar():
     return atalhos
 
 
-@habilidade("Abre um programa/aplicativo instalado no computador (ex.: chrome, spotify, vscode, pycharm, discord, calculadora).",
+def _sem_acento(t):
+    import unicodedata
+    t = unicodedata.normalize("NFD", str(t or "").lower())
+    t = "".join(c for c in t if unicodedata.category(c) != "Mn")
+    return re.sub(r"[^a-z0-9]+", " ", t).strip()
+
+
+_APPS_CACHE = None
+
+
+def _apps_instalados(atualizar=False):
+    """Todos os apps do Menu Iniciar, INCLUSIVE os da Microsoft Store (que não têm atalho .lnk).
+    Devolve {nome_normalizado: (nome_bonito, como_abrir)}."""
+    global _APPS_CACHE
+    if _APPS_CACHE is not None and not atualizar:
+        return _APPS_CACHE
+    apps = {}
+    # 1) Get-StartApps: lista tudo que aparece no Menu Iniciar (programas comuns + apps da Store)
+    if WINDOWS:
+        try:
+            cmd = ("[Console]::OutputEncoding=[Text.Encoding]::UTF8; "
+                   "Get-StartApps | Select-Object Name,AppID | ConvertTo-Json -Compress")
+            r = subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True,
+                               timeout=20, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            import json
+            dados = json.loads(r.stdout.decode("utf-8", "ignore") or "[]")
+            if isinstance(dados, dict):
+                dados = [dados]
+            for a in dados:
+                nome, appid = a.get("Name") or "", a.get("AppID") or ""
+                n = _sem_acento(nome)
+                if not n or not appid or "uninstall" in n or "desinstalar" in n:
+                    continue
+                apps.setdefault(n, (nome, "shell:AppsFolder\\" + appid))
+        except Exception as e:
+            print(f"[abrir_programa] Get-StartApps falhou: {e}")
+    # 2) atalhos .lnk/.url (Menu Iniciar e Área de Trabalho), caso o de cima falhe
+    for nome, arq in _atalhos_menu_iniciar().items():
+        apps.setdefault(_sem_acento(nome), (os.path.splitext(os.path.basename(arq))[0], arq))
+    _APPS_CACHE = apps
+    return apps
+
+
+def _achar_app(chave, apps):
+    if chave in apps:
+        return chave
+    if len(chave) < 3:
+        return None
+    # nome do app contém o que foi falado (ex.: "esound" -> "esound music")
+    contem = [n for n in apps if chave in n]
+    if contem:
+        return sorted(contem, key=len)[0]
+    # o que foi falado contém o nome do app (ex.: "o spotify music" -> "spotify")
+    dentro = [n for n in apps if len(n) >= 4 and n in chave]
+    if dentro:
+        return sorted(dentro, key=len)[-1]
+    # junta as palavras (o reconhecimento de voz às vezes separa: "e sound" -> "esound")
+    junto = chave.replace(" ", "")
+    for n in apps:
+        if junto and junto in n.replace(" ", ""):
+            return n
+    perto = difflib.get_close_matches(chave, list(apps), n=1, cutoff=0.6)
+    return perto[0] if perto else None
+
+
+@habilidade("Abre qualquer programa/aplicativo instalado no computador, inclusive apps da Microsoft Store "
+            "(ex.: chrome, spotify, eSound, vscode, pycharm, discord, calculadora, whatsapp).",
             {"nome": _txt(desc="Nome do programa")}, ["nome"])
 def abrir_programa(nome):
-    chave = nome.lower().strip()
+    maximizar_depois(12)
+    chave = _sem_acento(re.sub(r"^(o |a )?(app|aplicativo|programa)( do| da| de)? ", "", nome.lower().strip()))
     if chave in PROGRAMAS:
         alvo = PROGRAMAS[chave]
         try:
@@ -141,12 +261,19 @@ def abrir_programa(nome):
             return f"Abrindo {nome}."
         except Exception:
             pass
-    atalhos = _atalhos_menu_iniciar()
-    contem = [n for n in atalhos if chave in n]
-    melhor = sorted(contem, key=len)[:1] or difflib.get_close_matches(chave, atalhos.keys(), n=1, cutoff=0.5)
-    if melhor:
-        os.startfile(atalhos[melhor[0]])
-        return f"Abrindo {melhor[0]}."
+    for atualizar in (False, True):   # se não achar, recarrega a lista (app instalado agora há pouco)
+        apps = _apps_instalados(atualizar)
+        achado = _achar_app(chave, apps)
+        if achado:
+            bonito, alvo = apps[achado]
+            try:
+                if alvo.startswith("shell:AppsFolder"):
+                    subprocess.Popen(["explorer.exe", alvo])
+                else:
+                    os.startfile(alvo)
+                return f"Abrindo {bonito}."
+            except Exception as e:
+                return f"Achei o {bonito}, mas não consegui abrir ({e})."
     return f"Não encontrei o programa '{nome}' no computador."
 
 
@@ -324,7 +451,8 @@ CLIMA_COD = {
 }
 
 
-@habilidade("Mostra o clima atual e a previsão de hoje e amanhã de uma cidade.",
+@habilidade("Mostra o clima, a temperatura, se vai chover, se está calor ou frio, e a previsão de hoje e amanhã de uma cidade. "
+            "SEMPRE use esta ferramenta para qualquer pergunta sobre tempo, temperatura, calor, frio ou chuva.",
             {"cidade": _txt(desc=f"Cidade (padrão: {config.CIDADE_PADRAO})")})
 def clima(cidade=None):
     cidade = cidade or config.CIDADE_PADRAO
@@ -377,6 +505,65 @@ def buscar_video_youtube(busca):
     return ids[0] if ids else None
 
 
+def _janela_youtube():
+    """Procura uma janela do navegador que esteja mostrando o YouTube. Devolve o identificador ou None."""
+    if not WINDOWS:
+        return None
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+    achadas = []
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def _cada(hwnd, _):
+        if user32.IsWindowVisible(hwnd):
+            n = user32.GetWindowTextLengthW(hwnd)
+            if n:
+                buf = ctypes.create_unicode_buffer(n + 1)
+                user32.GetWindowTextW(hwnd, buf, n + 1)
+                titulo = buf.value
+                if "YouTube" in titulo and ("Chrome" in titulo or "Edge" in titulo or "Brave" in titulo
+                                            or "Firefox" in titulo):   # só navegador (o app do YouTube não tem barra de endereço)
+                    achadas.append(hwnd)
+        return True
+
+    user32.EnumWindows(_cada, 0)
+    return achadas[0] if achadas else None
+
+
+def _abrir_na_aba_do_youtube(url):
+    """Reaproveita a aba do YouTube que já está aberta (em vez de abrir uma aba nova).
+    Só digita o endereço se tiver certeza de que a janela certa está na frente."""
+    hwnd = _janela_youtube()
+    if not hwnd:
+        return False
+    try:
+        import ctypes
+        import time
+        import keyboard
+        user32 = ctypes.windll.user32
+        user32.ShowWindow(hwnd, 3)                     # maximiza (também tira do minimizado)
+        user32.keybd_event(0x12, 0, 0, 0)              # truque do Alt: o Windows deixa trazer a janela pra frente
+        user32.keybd_event(0x12, 0, 2, 0)
+        user32.SetForegroundWindow(hwnd)
+        time.sleep(0.35)
+        if user32.GetForegroundWindow() != hwnd:
+            return False                               # não conseguiu focar: melhor abrir aba nova do que digitar no lugar errado
+        keyboard.send("ctrl+l")
+        time.sleep(0.15)
+        keyboard.write(url, delay=0)
+        time.sleep(0.05)
+        keyboard.send("enter")
+        return True
+    except Exception as e:
+        print(f"[youtube] não consegui reaproveitar a aba: {e}")
+        return False
+
+
+def _abrir_youtube(url):
+    return _abrir_na_aba_do_youtube(url) or abrir_url(url)
+
+
 @habilidade("Toca uma música, clipe ou vídeo no YouTube.",
             {"busca": _txt(desc="Nome da música/artista/vídeo")}, ["busca"])
 def tocar_youtube(busca):
@@ -386,10 +573,10 @@ def tocar_youtube(busca):
         print(f"[youtube] busca falhou: {e}")
         vid = None
     if not vid:
-        if not abrir_url("https://www.youtube.com/results?search_query=" + urllib.parse.quote(busca)):
+        if not _abrir_youtube("https://www.youtube.com/results?search_query=" + urllib.parse.quote(busca)):
             return "Não consegui abrir o navegador."
         return f"Abri a pesquisa de '{busca}' no YouTube."
-    if not abrir_url(f"https://www.youtube.com/watch?v={vid}"):
+    if not _abrir_youtube(f"https://www.youtube.com/watch?v={vid}"):
         return "Não consegui abrir o navegador."
     return f"Tocando '{busca}' no YouTube."
 
@@ -470,5 +657,18 @@ def ler_anotacoes(quantidade=5):
 def abrir_anotacoes():
     if not os.path.exists(ANOTACOES):
         open(ANOTACOES, "w", encoding="utf-8").close()
+    maximizar_depois()
     os.startfile(ANOTACOES)
     return "Abrindo suas anotações."
+
+
+# =====================================================================
+# Prospecção de clientes no WhatsApp (fica em core/prospeccao.py)
+# =====================================================================
+from core import prospeccao  # noqa: E402,F401  (registra as habilidades de prospecção)
+from core import gmail  # noqa: E402,F401  (registra a habilidade de conferir o e-mail)
+
+# carrega a lista de apps instalados em segundo plano, para o "abre ..." ser instantâneo
+if WINDOWS:
+    import threading  # noqa: E402
+    threading.Thread(target=_apps_instalados, daemon=True).start()

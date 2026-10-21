@@ -64,7 +64,37 @@ class Ouvido:
 
     # ---------- escuta ----------
     def _limiar(self):
-        return max(self.ruido * config.SENSIBILIDADE, 280.0)
+        return max(self.ruido * config.SENSIBILIDADE, getattr(config, "LIMIAR_MINIMO", 280.0))
+
+    def gravar_direto(self, segundos_max=7.0, parar=None):
+        """Grava sem esperar a voz passar do limiar (usado no atalho Ctrl+Alt+M / clique).
+        Para quando você fica ~1 s quieto depois de falar, ou no tempo máximo.
+        Funciona mesmo com microfone baixo: quem separa voz de silêncio depois é o Whisper."""
+        self.limpar()
+        gravado, duracao, silencio, falou = [], 0.0, 0.0, False
+        seg_bloco = BLOCO / TAXA
+        limiar = max(self.ruido * 1.15, 60.0)
+        while duracao < segundos_max:
+            if parar is not None and parar.is_set():
+                break
+            try:
+                bloco = self.fila.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            nivel = _rms(bloco)
+            if self.nivel_callback:
+                self.nivel_callback(min(1.0, nivel / (limiar * 4)))
+            gravado.append(bloco)
+            duracao += seg_bloco
+            if nivel > limiar:
+                falou, silencio = True, 0.0
+            else:
+                silencio += seg_bloco
+            if falou and silencio >= 1.0 and duracao > 1.2:
+                break
+        if not gravado:
+            return None
+        return np.concatenate(gravado).astype(np.float32) / 32768.0
 
     def ouvir_frase(self, timeout_inicio=None, parar=None):
         """Espera você falar e devolve o áudio (float32 16 kHz) ou None.
