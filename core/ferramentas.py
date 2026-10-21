@@ -667,6 +667,7 @@ def abrir_anotacoes():
 # =====================================================================
 from core import prospeccao  # noqa: E402,F401  (registra as habilidades de prospecção)
 from core import gmail  # noqa: E402,F401  (registra a habilidade de conferir o e-mail)
+from core import narracao  # noqa: E402,F401  (registra a narração de vídeo na voz da Marin)
 
 # carrega a lista de apps instalados em segundo plano, para o "abre ..." ser instantâneo
 if WINDOWS:

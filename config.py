@@ -118,6 +118,7 @@ LINKS_MODELO = {
     "energia solar": "https://solar-aurora.netlify.app",
     "sushi": "https://sumi-demo.netlify.app",
     "açaí": "https://igarape-acai.netlify.app",
+    "confeitaria": "https://flor-de-caju.netlify.app",
     # "academia": "https://...netlify.app",
     # "hamburgueria": "https://...netlify.app",
     "padrao": "",

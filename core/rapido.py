@@ -164,6 +164,11 @@ def tentar(texto: str):
         r = f.tocar_youtube(busca)
         return r if r.startswith("Não") else f"Tocando {busca}!"
 
+    # --- narração do vídeo (voz da Marin no ElevenLabs) ---
+    if re.search(r"(grava|gravar|grave|faz|faca|fazer|gera|gerar)( a| uma)? narrac(ao|oes)", n):
+        from core import narracao
+        return narracao.gravar_narracao_video()
+
     # --- e-mail ---
     if re.fullmatch(r"(confere|conferir|ve|verifica|checa|olha)( o| os| meu| meus)? (e ?mails?|gmail|caixa de entrada)( novos?)?|chegou (algum )?(e ?mail|resposta)( novo| nova)?", n):
         from core import gmail

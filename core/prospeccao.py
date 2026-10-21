@@ -140,7 +140,7 @@ def _telefone(numero):
 PLURAL = {
     "sushi": "restaurantes japoneses", "hamburgueria": "hamburguerias", "academia": "academias",
     "clinica": "clínicas", "advocacia": "escritórios de advocacia", "imobiliaria": "imobiliárias",
-    "fretes": "empresas de frete", "energia solar": "empresas de energia solar", "pizzaria": "pizzarias", "acai": "açaiterias",
+    "fretes": "empresas de frete", "energia solar": "empresas de energia solar", "pizzaria": "pizzarias", "acai": "açaiterias", "confeitaria": "confeitarias",
 }
 
 # O que o site-modelo de cada nicho tem (só coisas que o modelo realmente faz). Vai no meio da mensagem.
@@ -198,6 +198,18 @@ ABORDAGENS_NICHO = {
         "✅ Vocês mudam preços e produtos pelo próprio celular\n\n"
         "É o que faz o cliente pedir direto com vocês, e não pelo aplicativo. Teriam interesse em ter um assim?"
     ),
+    # Aprovada pelo Levy em 21/10/2026: curta, sem preço, recursos reais do modelo Flor de Caju.
+    "confeitaria": (
+        "Oi, tudo bem? Falo com o responsável pela {nome}? É sobre o site da confeitaria, não é encomenda 😊\n\n"
+        "Fiz este modelo de site pra confeitaria:\n"
+        "👉 {link}\n\n"
+        "Nele o cliente monta o bolo (tamanho, massa, recheio e decoração), vê o preço na hora e já paga o sinal no Pix "
+        "pra reservar a data. A encomenda chega prontinha no WhatsApp de vocês.\n\n"
+        "✅ Sem pagar comissão por pedido, como no iFood\n"
+        "✅ Sem vai e volta de mensagem pra fechar encomenda\n"
+        "✅ Vitrine com os doces do dia e kits festa\n\n"
+        "É o que faz o cliente encomendar direto com vocês. Teriam interesse em ter um assim?"
+    ),
     # Aprovada pelo Levy em 19/10/2026: curta, sem preço e sem oferecer prévia.
     "energia solar": (
         "Oi, tudo bem? Falo com o responsável pela {nome}? É sobre o site da empresa, não é orçamento 😊\n\n"
@@ -236,6 +248,11 @@ FOLLOWUPS = [
 FOLLOWUPS_NICHO = {
     # Aprovado pelo Levy em 13/10/2026: sem oferecer prévia grátis e sem falar de preço.
     "acai": (
+        "Oi, tudo bem? Passando só pra saber se chegou a ver o modelo de site que te mandei:\n"
+        "{link}\n\n"
+        "Ficou alguma dúvida sobre como ele funciona?"
+    ),
+    "confeitaria": (
         "Oi, tudo bem? Passando só pra saber se chegou a ver o modelo de site que te mandei:\n"
         "{link}\n\n"
         "Ficou alguma dúvida sobre como ele funciona?"
